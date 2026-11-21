@@ -4,7 +4,8 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B.svg)](https://streamlit.io/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.5%2B-F7931E.svg)](https://scikit-learn.org/)
 [![XGBoost](https://img.shields.io/badge/XGBoost-2.1%2B-green.svg)](https://xgboost.ai/)
-[![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Ayush--509%2FHCL__HACKATHON__EMAIL-blue?logo=github)](https://github.com/Ayush-509/HCL_HACKATHON_EMAIL)
+[![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B.svg)](https://share.streamlit.io/)
 
 An end-to-end, research-grade Email and SMS Spam Classification project developed for hackathons and production deployment. This project benchmarks Classical Machine Learning models against Deep Learning architectures under strict, leak-free experimental conditions, and deploys the champion model via an interactive **Streamlit Web Application** for real-time threat detection.
 
@@ -84,8 +85,8 @@ hcl_tech/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/<your-username>/email-spam-classification.git
-cd email-spam-classification
+git clone https://github.com/Ayush-509/HCL_HACKATHON_EMAIL.git
+cd HCL_HACKATHON_EMAIL
 ```
 
 ### 2. Create and Activate a Virtual Environment

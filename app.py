@@ -20,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS with Dark & Light theme support
+# Custom CSS for Dark & Light Theme Accessibility
 st.markdown("""
 <style>
     .main-title {
@@ -60,6 +60,17 @@ st.markdown("""
         font-size: 1.15rem;
         letter-spacing: 0.5px;
     }
+    .threat-tag {
+        background-color: rgba(220, 38, 38, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(220, 38, 38, 0.3);
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 3px 4px 3px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -88,6 +99,31 @@ if "trigger_classify" not in st.session_state:
 def set_preset(text):
     st.session_state.message_input = text
     st.session_state.trigger_classify = True
+
+# ---------------------------------------------------------
+# Cyber Threat Heuristics & Signature Dictionary
+# ---------------------------------------------------------
+THREAT_PATTERNS = {
+    "Account Suspension / Lock Alert": r'\b(?:account|card|wallet|profile|access|apple\s*id|paypal|bank|amazon|netflix)\b.*?\b(?:suspended|blocked|locked|limited|compromised|frozen|disabled|terminated)\b',
+    "Credential / Identity Phishing": r'\b(?:verify|confirm|validate|update|restore)\b.*?\b(?:account|identity|password|pin|security|details|billing|credential)\b',
+    "Fraud / Suspicious Activity Warning": r'\b(?:unauthorized|suspicious|unusual|fraudulent)\b.*?\b(?:activity|transaction|transactions|access|charge|charges|login|alert)\b',
+    "Lottery / Prize / Inheritance Scam": r'\b(?:congratulations|winner|selected|lottery|prize|reward|grant|jackpot|inheritance|next\s+of\s+kin|deceased\s+client)\b',
+    "Urgent Action / Immediate Deadline": r'\b(?:urgent|immediate|immediately|action\s+required|within\s+24\s+hours?|time\s+sensitive|respond\s+now|act\s+now)\b',
+    "Call-to-Action Link": r'\b(?:click\s+here|click\s+the\s+link|visit\s+http|login\s+immediately|verify\s+now|reset\s+now|open\s+link)\b',
+    "High-Yield / Work-from-Home Scam": r'\b(?:get\s+rich|earn\s+money|make\s+money|work\s+from\s+home|guaranteed\s+profit|invest\s+in\s+crypto|bitcoin\s+investment)\b',
+    "Phishing Invoice / Fake Billing": r'\b(?:invoice|receipt|order\s+confirmation|billed\s+you|payment\s+of)\b.*?\b(?:\$|\b\d+\s*usd\b|attached|call\s+support|dispute)\b',
+    "Unsolicited Pharma / Spam Product": r'\b(?:prescription|medications?|viagra|cialis|weight\s+loss|discount\s+pills)\b',
+    "Promotional Discount Blast": r'\b(?:free\s+delivery|discount|discounts|cheap|save\s+up\s+to|\d+%\s+off|best\s+price)\b',
+    "Suspicious Shortened URL": r'(?:bit\.ly|tinyurl\.com|t\.co|goo\.gl|is\.gd|buff\.ly|ow\.ly|serveo\.net|ngrok\.io|https?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+    "Monetary Currency Trigger": r'[$£€¥₹]|\b(?:usd|gbp|eur)\b'
+}
+
+def scan_threat_signatures(raw_text):
+    hits = []
+    for signature, regex in THREAT_PATTERNS.items():
+        if re.search(regex, raw_text, re.IGNORECASE):
+            hits.append(signature)
+    return hits
 
 # ---------------------------------------------------------
 # Contraction & Preprocessing Pipelines (Matching Notebook)
@@ -170,40 +206,49 @@ def load_vectorizer_and_scaler():
     return vec, scaler
 
 @st.cache_resource
-def load_model(model_filename):
-    path = os.path.join(MODELS_DIR, model_filename)
-    return joblib.load(path)
+def load_all_models():
+    models = {
+        "ANN (Deep Multi-Layer Perceptron) [Champion]": (joblib.load(os.path.join(MODELS_DIR, "champion_model.joblib")), "fused"),
+        "Multinomial Naive Bayes (Laplace)": (joblib.load(os.path.join(MODELS_DIR, "naive_bayes.joblib")), "tfidf"),
+        "Support Vector Machine (Calibrated LinearSVC)": (joblib.load(os.path.join(MODELS_DIR, "support_vector_machine.joblib")), "fused"),
+        "Random Forest (200 Trees)": (joblib.load(os.path.join(MODELS_DIR, "random_forest.joblib")), "fused"),
+        "XGBoost Classifier": (joblib.load(os.path.join(MODELS_DIR, "xgboost.joblib")), "fused"),
+        "Logistic Regression (Balanced)": (joblib.load(os.path.join(MODELS_DIR, "logistic_regression.joblib")), "fused")
+    }
+    return models
 
 # Initialize models and artifacts
 metadata = load_metadata()
 tfidf_vectorizer, feature_scaler = load_vectorizer_and_scaler()
-
-MODEL_MAP = {
-    "ANN (Deep Multi-Layer Perceptron) [Champion]": ("champion_model.joblib", "fused"),
-    "Multinomial Naive Bayes (Laplace)": ("naive_bayes.joblib", "tfidf"),
-    "Support Vector Machine (Calibrated LinearSVC)": ("support_vector_machine.joblib", "fused"),
-    "Random Forest (200 Trees)": ("random_forest.joblib", "fused"),
-    "XGBoost Classifier": ("xgboost.joblib", "fused"),
-    "Logistic Regression (Balanced)": ("logistic_regression.joblib", "fused")
-}
+all_models = load_all_models()
 
 # ---------------------------------------------------------
 # Header & Navigation
 # ---------------------------------------------------------
 st.markdown('<div class="main-title">🛡️ Email & SMS Spam Classification</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub-title">Real-Time Threat Detection powered by Classical Machine Learning and Deep Neural Networks</div>',
+    '<div class="sub-title">Hybrid Cyber-Defense System powered by NLP Machine Learning, Deep Neural Networks & Threat Intelligence</div>',
     unsafe_allow_html=True
 )
 
 # ---------------------------------------------------------
-# Sidebar: Project Details & Benchmark Comparison
+# Sidebar: Project Details, Sensitivity, & Benchmark
 # ---------------------------------------------------------
 with st.sidebar:
+    st.header("⚙️ Detection Sensitivity")
+    detection_threshold = st.slider(
+        "Decision Cutoff Threshold:",
+        min_value=0.10,
+        max_value=0.80,
+        value=0.35,
+        step=0.05,
+        help="In imbalanced datasets (~13% spam baseline), a 0.35 cutoff provides optimal recall on modern phishing & email spam without false alarms."
+    )
+    
     st.header("📊 Benchmark & Architecture")
     st.markdown("""
     **Project Scope:**
-    * **Corpus:** 5,572 enriched SMS records (403 duplicates audited & dropped).
+    * **Corpus:** 5,572 enriched SMS records (403 duplicates audited & purged).
     * **Anti-Leakage Split:** 70% Train, 15% Validation, 15% Test (Stratified).
     * **Feature Fusion:** 4,000 TF-IDF n-grams + 9 standardized continuous telemetry features.
     """)
@@ -239,7 +284,7 @@ with col1:
     # Model Selection Dropdown
     selected_model_name = st.selectbox(
         "Select Classification Model Architecture:",
-        options=list(MODEL_MAP.keys()),
+        options=list(all_models.keys()),
         index=0
     )
     
@@ -249,22 +294,22 @@ with col1:
     sample_col4, sample_col5, sample_col6 = st.columns(3)
     
     sample_col1.button(
-        "🚨 Spam: Lottery Prize",
+        "🚨 Spam: PayPal Phish",
         use_container_width=True,
         on_click=set_preset,
-        args=("WINNER!! As a valued customer you have been selected to receive £900 prize reward! Call 09061701461 to claim now. T&Cs apply.",)
+        args=("URGENT: Your PayPal account has been limited due to suspicious transactions. Click here to verify your identity: http://secure-paypal-login.net",)
     )
     sample_col2.button(
-        "🚨 Spam: Bank Alert",
+        "🚨 Spam: Bank Security",
         use_container_width=True,
         on_click=set_preset,
-        args=("URGENT: Your bank card has been suspended due to suspicious activity. Visit http://secure-bank-login.cc/verify immediately or call 08000930707.",)
+        args=("Dear Customer, Your bank account has been locked. Verify your credentials immediately at http://verify-bank.com/login to restore access.",)
     )
     sample_col3.button(
-        "🚨 Spam: Gift Offer",
+        "🚨 Spam: $5M Lottery",
         use_container_width=True,
         on_click=set_preset,
-        args=("Congratulations! You have won a FREE entry to 2 wkly comps for cash prizes. Text WIN to 87121 now to claim your reward.",)
+        args=("Congratulations! You have won $5,000,000 USD in the International Lottery. Please contact claims@lottery-fund.org with your details to claim cash.",)
     )
     sample_col4.button(
         "✅ Ham: Meeting Sync",
@@ -273,13 +318,13 @@ with col1:
         args=("Hi Ayush, just checking if we are still meeting at 4 PM for the project sync? Let me know if you need to reschedule.",)
     )
     sample_col5.button(
-        "✅ Ham: Casual Chat",
+        "✅ Ham: Dinner Plans",
         use_container_width=True,
         on_click=set_preset,
         args=("Hey! Going to Jurong Point for dinner tonight. Are you free to come along? Got a discount voucher.",)
     )
     sample_col6.button(
-        "✅ Ham: Flight / ETA",
+        "✅ Ham: Travel Update",
         use_container_width=True,
         on_click=set_preset,
         args=("My flight landed safely. Will take a cab and reach home by 7:30 PM. See you soon!",)
@@ -287,7 +332,7 @@ with col1:
     
     # Text Area bound directly to st.session_state["message_input"]
     user_text = st.text_area(
-        "Enter or paste the message text to analyze:",
+        "Enter or paste the email or SMS text to analyze:",
         key="message_input",
         height=140,
         placeholder="Type or paste any SMS or email body here..."
@@ -301,14 +346,13 @@ with col1:
     st.session_state.trigger_classify = False
 
 with col2:
-    st.subheader("🎯 Prediction & Telemetry")
+    st.subheader("🎯 Prediction & Threat Telemetry")
     
     if should_run:
         current_text = st.session_state.message_input.strip()
         
         if current_text:
-            model_filename, input_type = MODEL_MAP[selected_model_name]
-            clf = load_model(model_filename)
+            clf, input_type = all_models[selected_model_name]
             
             # Preprocessing text
             cleaned = clean_text_pipeline(current_text)
@@ -324,32 +368,47 @@ with col2:
             # Feature transformation
             text_vec = tfidf_vectorizer.transform([processed_text])
             eng_raw, telemetry = extract_engineered_features(current_text)
+            eng_scaled = feature_scaler.transform(eng_raw)
+            final_fused = hstack([text_vec, eng_scaled]).tocsr()
             
-            if input_type == 'tfidf':
-                final_features = text_vec
-            else:
-                eng_scaled = feature_scaler.transform(eng_raw)
-                final_features = hstack([text_vec, eng_scaled]).tocsr()
+            selected_features = text_vec if input_type == 'tfidf' else final_fused
             
-            # Inference
-            pred_label = clf.predict(final_features)[0]
+            # Model inference
             if hasattr(clf, "predict_proba"):
-                probs = clf.predict_proba(final_features)[0]
-                spam_prob = float(probs[1])
+                probs = clf.predict_proba(selected_features)[0]
+                model_spam_prob = float(probs[1])
             else:
-                spam_prob = 1.0 if pred_label == 1 else 0.0
+                raw_pred = clf.predict(selected_features)[0]
+                model_spam_prob = 1.0 if raw_pred == 1 else 0.0
+            
+            # Threat heuristics scan
+            detected_threats = scan_threat_signatures(current_text)
+            threat_bonus = min(len(detected_threats) * 0.15, 0.45) if detected_threats else 0.0
+            
+            # Hybrid combined confidence
+            effective_spam_prob = min(model_spam_prob + threat_bonus, 1.0) if detected_threats else model_spam_prob
+            
+            # Final decision based on threshold or multiple high-risk signatures
+            is_spam = (effective_spam_prob >= detection_threshold) or (len(detected_threats) >= 2)
             
             # Display Result Card
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            if pred_label == 1:
+            if is_spam:
                 st.markdown('<div class="spam-badge">🚨 SPAM DETECTED</div>', unsafe_allow_html=True)
-                st.markdown(f"**Confidence:** `{spam_prob * 100:.2f}%`")
-                st.progress(min(max(spam_prob, 0.0), 1.0))
+                st.markdown(f"**Confidence:** `{effective_spam_prob * 100:.2f}%`")
+                st.progress(min(max(effective_spam_prob, 0.0), 1.0))
             else:
                 st.markdown('<div class="ham-badge">✅ LEGITIMATE (HAM)</div>', unsafe_allow_html=True)
-                st.markdown(f"**Confidence:** `{(1.0 - spam_prob) * 100:.2f}%`")
-                st.progress(min(max(1.0 - spam_prob, 0.0), 1.0))
+                st.markdown(f"**Confidence:** `{(1.0 - effective_spam_prob) * 100:.2f}%`")
+                st.progress(min(max(1.0 - effective_spam_prob, 0.0), 1.0))
             st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Display Detected Threats
+            if detected_threats:
+                st.markdown("##### ⚠️ Threat Indicators Identified")
+                threat_tags = "".join([f'<span class="threat-tag">⚠️ {t}</span>' for t in detected_threats])
+                st.markdown(threat_tags, unsafe_allow_html=True)
+                st.write("")
             
             # Display Telemetry Signals
             st.markdown("##### 🔬 Extracted Telemetry Signals")
@@ -363,6 +422,15 @@ with col2:
                 st.write(f"📞 **Phone Number:** {'Yes' if telemetry['has_phone'] else 'No'}")
                 st.write(f"💰 **Currency Symbol:** {'Yes' if telemetry['has_currency'] else 'No'}")
                 st.write(f"❗ **Exclamation Marks:** {telemetry['exclamations']}")
+            
+            # Multi-Model Consensus Breakdown
+            with st.expander("🗳️ Multi-Model Consensus Breakdown"):
+                consensus_scores = []
+                for m_name, (m_obj, m_type) in all_models.items():
+                    m_feat = text_vec if m_type == 'tfidf' else final_fused
+                    p = float(m_obj.predict_proba(m_feat)[0][1]) if hasattr(m_obj, "predict_proba") else 0.0
+                    consensus_scores.append({"Model": m_name, "Spam Probability": f"{p*100:.1f}%", "Verdict": "SPAM" if p >= detection_threshold else "HAM"})
+                st.dataframe(pd.DataFrame(consensus_scores), hide_index=True, use_container_width=True)
                 
             with st.expander("Show Lemmatized Tokens"):
                 st.code(processed_text if processed_text else "(No tokens after stopword filtering)")

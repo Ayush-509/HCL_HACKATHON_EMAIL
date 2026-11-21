@@ -20,44 +20,45 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for polished research-grade UI
+# Custom CSS with Dark & Light theme support
 st.markdown("""
 <style>
     .main-title {
         font-size: 2.2rem;
-        font-weight: 700;
-        color: #1E3A8A;
+        font-weight: 800;
         margin-bottom: 0.2rem;
     }
     .sub-title {
         font-size: 1.05rem;
-        color: #4B5563;
+        opacity: 0.85;
         margin-bottom: 1.5rem;
     }
     .metric-card {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
+        border-radius: 10px;
+        padding: 18px;
+        margin-bottom: 15px;
+        border: 1px solid rgba(128, 128, 128, 0.25);
+        background: rgba(128, 128, 128, 0.05);
     }
     .spam-badge {
-        background-color: #FEE2E2;
-        color: #991B1B;
-        padding: 6px 14px;
+        background-color: #dc2626;
+        color: white;
+        padding: 8px 18px;
         border-radius: 20px;
         font-weight: 700;
         display: inline-block;
-        font-size: 1.1rem;
+        font-size: 1.15rem;
+        letter-spacing: 0.5px;
     }
     .ham-badge {
-        background-color: #DCFCE7;
-        color: #166534;
-        padding: 6px 14px;
+        background-color: #16a34a;
+        color: white;
+        padding: 8px 18px;
         border-radius: 20px;
         font-weight: 700;
         display: inline-block;
-        font-size: 1.1rem;
+        font-size: 1.15rem;
+        letter-spacing: 0.5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -74,6 +75,19 @@ def setup_nltk():
             nltk.download(corpus, quiet=True)
 
 setup_nltk()
+
+# ---------------------------------------------------------
+# Session State Initialization for Persistent Input
+# ---------------------------------------------------------
+if "message_input" not in st.session_state:
+    st.session_state.message_input = ""
+
+if "trigger_classify" not in st.session_state:
+    st.session_state.trigger_classify = False
+
+def set_preset(text):
+    st.session_state.message_input = text
+    st.session_state.trigger_classify = True
 
 # ---------------------------------------------------------
 # Contraction & Preprocessing Pipelines (Matching Notebook)
@@ -229,100 +243,130 @@ with col1:
         index=0
     )
     
-    # Sample Presets for Quick Testing
-    st.markdown("**Quick Test Presets:**")
+    # Sample Presets with on_click callbacks for robust state preservation
+    st.markdown("**Quick Test Presets (Click to autofill):**")
     sample_col1, sample_col2, sample_col3 = st.columns(3)
     sample_col4, sample_col5, sample_col6 = st.columns(3)
     
-    preset_text = ""
-    if sample_col1.button("🚨 Spam: Lottery Prize"):
-        preset_text = "WINNER!! As a valued customer you have been selected to receive £900 prize reward! Call 09061701461 to claim now. T&Cs apply."
-    if sample_col2.button("🚨 Spam: Urgent Bank Alert"):
-        preset_text = "URGENT: Your bank card has been suspended due to suspicious activity. Visit http://secure-bank-login.cc/verify immediately or call 08000930707."
-    if sample_col3.button("🚨 Spam: Free Gift Offer"):
-        preset_text = "Congratulations! You have won a FREE entry to 2 wkly comps for cash prizes. Text WIN to 87121 now to claim your reward."
-    if sample_col4.button("✅ Ham: Meeting Reminder"):
-        preset_text = "Hi Ayush, just checking if we are still meeting at 4 PM for the project sync? Let me know if you need to reschedule."
-    if sample_col5.button("✅ Ham: Casual Chat"):
-        preset_text = "Hey! Going to Jurong Point for dinner tonight. Are you free to come along? Got a discount voucher."
-    if sample_col6.button("✅ Ham: Flight / ETA"):
-        preset_text = "My flight landed safely. Will take a cab and reach home by 7:30 PM. See you soon!"
+    sample_col1.button(
+        "🚨 Spam: Lottery Prize",
+        use_container_width=True,
+        on_click=set_preset,
+        args=("WINNER!! As a valued customer you have been selected to receive £900 prize reward! Call 09061701461 to claim now. T&Cs apply.",)
+    )
+    sample_col2.button(
+        "🚨 Spam: Bank Alert",
+        use_container_width=True,
+        on_click=set_preset,
+        args=("URGENT: Your bank card has been suspended due to suspicious activity. Visit http://secure-bank-login.cc/verify immediately or call 08000930707.",)
+    )
+    sample_col3.button(
+        "🚨 Spam: Gift Offer",
+        use_container_width=True,
+        on_click=set_preset,
+        args=("Congratulations! You have won a FREE entry to 2 wkly comps for cash prizes. Text WIN to 87121 now to claim your reward.",)
+    )
+    sample_col4.button(
+        "✅ Ham: Meeting Sync",
+        use_container_width=True,
+        on_click=set_preset,
+        args=("Hi Ayush, just checking if we are still meeting at 4 PM for the project sync? Let me know if you need to reschedule.",)
+    )
+    sample_col5.button(
+        "✅ Ham: Casual Chat",
+        use_container_width=True,
+        on_click=set_preset,
+        args=("Hey! Going to Jurong Point for dinner tonight. Are you free to come along? Got a discount voucher.",)
+    )
+    sample_col6.button(
+        "✅ Ham: Flight / ETA",
+        use_container_width=True,
+        on_click=set_preset,
+        args=("My flight landed safely. Will take a cab and reach home by 7:30 PM. See you soon!",)
+    )
     
-    # Input Area
-    input_text = st.text_area(
+    # Text Area bound directly to st.session_state["message_input"]
+    user_text = st.text_area(
         "Enter or paste the message text to analyze:",
-        value=preset_text,
+        key="message_input",
         height=140,
         placeholder="Type or paste any SMS or email body here..."
     )
     
-    predict_btn = st.button("🔍 Classify Message", type="primary", use_container_width=True)
+    classify_clicked = st.button("🔍 Classify Message", type="primary", use_container_width=True)
+    
+    # Trigger classification if either button clicked or preset activated
+    should_run = classify_clicked or st.session_state.trigger_classify
+    # Reset trigger flag for subsequent interactions
+    st.session_state.trigger_classify = False
 
 with col2:
     st.subheader("🎯 Prediction & Telemetry")
     
-    if predict_btn and input_text.strip():
-        model_filename, input_type = MODEL_MAP[selected_model_name]
-        clf = load_model(model_filename)
+    if should_run:
+        current_text = st.session_state.message_input.strip()
         
-        # Preprocessing text
-        cleaned = clean_text_pipeline(input_text)
-        stop_words = set(stopwords.words('english'))
-        stop_words.difference_update({"not", "no", "nor", "only", "free", "all", "win", "cash"})
-        lemmatizer = WordNetLemmatizer()
-        
-        tokens = cleaned.split()
-        tokens_no_stop = [t for t in tokens if t not in stop_words and len(t) > 1]
-        lemmatized_tokens = [lemmatizer.lemmatize(t, pos='v') for t in tokens_no_stop]
-        processed_text = ' '.join(lemmatized_tokens)
-        
-        # Feature transformation
-        text_vec = tfidf_vectorizer.transform([processed_text])
-        eng_raw, telemetry = extract_engineered_features(input_text)
-        
-        if input_type == 'tfidf':
-            final_features = text_vec
-        else:
-            eng_scaled = feature_scaler.transform(eng_raw)
-            final_features = hstack([text_vec, eng_scaled]).tocsr()
-        
-        # Inference
-        pred_label = clf.predict(final_features)[0]
-        if hasattr(clf, "predict_proba"):
-            probs = clf.predict_proba(final_features)[0]
-            spam_prob = probs[1]
-        else:
-            spam_prob = 1.0 if pred_label == 1 else 0.0
-        
-        # Display Result Card
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        if pred_label == 1:
-            st.markdown('<div class="spam-badge">🚨 SPAM DETECTED</div>', unsafe_allow_html=True)
-            st.markdown(f"**Confidence:** `{spam_prob * 100:.2f}%`")
-            st.progress(float(spam_prob))
-        else:
-            st.markdown('<div class="ham-badge">✅ LEGITIMATE (HAM)</div>', unsafe_allow_html=True)
-            st.markdown(f"**Confidence:** `{(1 - spam_prob) * 100:.2f}%`")
-            st.progress(float(1 - spam_prob))
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Display Telemetry Signals
-        st.markdown("##### 🔬 Extracted Telemetry Signals")
-        col_t1, col_t2 = st.columns(2)
-        with col_t1:
-            st.metric("Length", f"{telemetry['char_count']} chars")
-            st.metric("Words", f"{telemetry['word_count']} words")
-            st.metric("Capital Ratio", f"{telemetry['capital_ratio']*100:.1f}%")
-        with col_t2:
-            st.write(f"🌐 **URL Detected:** {'Yes' if telemetry['has_url'] else 'No'}")
-            st.write(f"📞 **Phone Number:** {'Yes' if telemetry['has_phone'] else 'No'}")
-            st.write(f"💰 **Currency Symbol:** {'Yes' if telemetry['has_currency'] else 'No'}")
-            st.write(f"❗ **Exclamation Marks:** {telemetry['exclamations']}")
+        if current_text:
+            model_filename, input_type = MODEL_MAP[selected_model_name]
+            clf = load_model(model_filename)
             
-        with st.expander("Show Lemmatized Tokens"):
-            st.code(processed_text if processed_text else "(No content after stopword filtering)")
+            # Preprocessing text
+            cleaned = clean_text_pipeline(current_text)
+            stop_words = set(stopwords.words('english'))
+            stop_words.difference_update({"not", "no", "nor", "only", "free", "all", "win", "cash"})
+            lemmatizer = WordNetLemmatizer()
             
-    elif predict_btn:
-        st.warning("⚠️ Please enter a message text before clicking Classify.")
+            tokens = cleaned.split()
+            tokens_no_stop = [t for t in tokens if t not in stop_words and len(t) > 1]
+            lemmatized_tokens = [lemmatizer.lemmatize(t, pos='v') for t in tokens_no_stop]
+            processed_text = ' '.join(lemmatized_tokens)
+            
+            # Feature transformation
+            text_vec = tfidf_vectorizer.transform([processed_text])
+            eng_raw, telemetry = extract_engineered_features(current_text)
+            
+            if input_type == 'tfidf':
+                final_features = text_vec
+            else:
+                eng_scaled = feature_scaler.transform(eng_raw)
+                final_features = hstack([text_vec, eng_scaled]).tocsr()
+            
+            # Inference
+            pred_label = clf.predict(final_features)[0]
+            if hasattr(clf, "predict_proba"):
+                probs = clf.predict_proba(final_features)[0]
+                spam_prob = float(probs[1])
+            else:
+                spam_prob = 1.0 if pred_label == 1 else 0.0
+            
+            # Display Result Card
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            if pred_label == 1:
+                st.markdown('<div class="spam-badge">🚨 SPAM DETECTED</div>', unsafe_allow_html=True)
+                st.markdown(f"**Confidence:** `{spam_prob * 100:.2f}%`")
+                st.progress(min(max(spam_prob, 0.0), 1.0))
+            else:
+                st.markdown('<div class="ham-badge">✅ LEGITIMATE (HAM)</div>', unsafe_allow_html=True)
+                st.markdown(f"**Confidence:** `{(1.0 - spam_prob) * 100:.2f}%`")
+                st.progress(min(max(1.0 - spam_prob, 0.0), 1.0))
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Display Telemetry Signals
+            st.markdown("##### 🔬 Extracted Telemetry Signals")
+            col_t1, col_t2 = st.columns(2)
+            with col_t1:
+                st.metric("Length", f"{telemetry['char_count']} chars")
+                st.metric("Words", f"{telemetry['word_count']} words")
+                st.metric("Capital Ratio", f"{telemetry['capital_ratio']*100:.1f}%")
+            with col_t2:
+                st.write(f"🌐 **URL Detected:** {'Yes' if telemetry['has_url'] else 'No'}")
+                st.write(f"📞 **Phone Number:** {'Yes' if telemetry['has_phone'] else 'No'}")
+                st.write(f"💰 **Currency Symbol:** {'Yes' if telemetry['has_currency'] else 'No'}")
+                st.write(f"❗ **Exclamation Marks:** {telemetry['exclamations']}")
+                
+            with st.expander("Show Lemmatized Tokens"):
+                st.code(processed_text if processed_text else "(No tokens after stopword filtering)")
+        else:
+            st.warning("⚠️ Please enter a message text before clicking Classify.")
     else:
         st.info("👈 Enter a message or select a test preset, choose a model, and click **Classify Message**.")
